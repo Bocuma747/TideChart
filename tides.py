@@ -50,9 +50,6 @@ class GUI:
         # !!!!! GUI shit ahead !!!!!
         self.master = master
         master.title("Tidetimes")
-        Grid.columnconfigure(master, 0, weight=0)
-        Grid.columnconfigure(master, 1, weight=0)
-        Grid.columnconfigure(master, 2, weight=0)
         Grid.rowconfigure(master, 0, weight=1)
         Grid.rowconfigure(master, 1, weight=1)
         Grid.rowconfigure(master, 2, weight=1)
@@ -68,57 +65,57 @@ class GUI:
                                      text="Station number (click here to find yours)",
                                      style="URL.TLabel", cursor="hand2")
         self.labelStation.bind("<Button-1>", lambda e: callback_url("https://tidesandcurrents.noaa.gov/"))
-        self.labelStation.grid(row=0, column=0, sticky='sew', columnspan=3)
+        self.labelStation.grid(row=0, column=0, sticky='sew', columnspan=3, padx=5, pady=5)
 
         self.varStation = StringVar()
         self.entryStation = ttk.Entry(master, textvariable=self.varStation, justify='left')
-        self.entryStation.grid(row=1, column=0, sticky='new')
+        self.entryStation.grid(row=1, column=0, sticky='new', padx=5, pady=(0, 10))
 
-        ttk.Label(master, text="Show tides at:").grid(row=2, column=0, sticky='sew')
+        ttk.Label(master, text="Show tides at:").grid(row=2, column=0, sticky='sew', padx=5, pady=5)
         self.varRiseSet = StringVar()
         self.varRiseSet.set("Sunrise")
         self.comboRiseSet = ttk.Combobox(master, state="readonly",
                                          textvariable=self.varRiseSet,
                                          values=("Sunrise", "Sunset"))
-        self.comboRiseSet.grid(row=3, column=0, sticky='new')
+        self.comboRiseSet.grid(row=3, column=0, sticky='new', padx=5, pady=(0, 5))
 
-        ttk.Label(master, text="From:").grid(row=4, column=0, sticky='sew')
+        ttk.Label(master, text="From:").grid(row=4, column=0, sticky='sew', padx=5, pady=5)
 
         self.varMonthStart = StringVar()
         self.varMonthStart.set("January")
         self.comboMonthStart = ttk.Combobox(master, state="readonly",
                                        textvariable=self.varMonthStart,
                                        values=['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'])
-        self.comboMonthStart.grid(row=5, column=0, sticky='new')
+        self.comboMonthStart.grid(row=5, column=0, sticky='new', padx=5, pady=(0, 5))
 
         self.varDayStart = IntVar()
         self.varDayStart.set(1)
         self.entryDayStart = ttk.Entry(master, textvariable=self.varDayStart)
-        self.entryDayStart.grid(row=5, column=1, sticky='nw')
+        self.entryDayStart.grid(row=5, column=1, sticky='nw', padx=5, pady=(0, 5))
 
         self.varYearStart = IntVar()
         self.varYearStart.set(2020)
         self.entryYearStart = ttk.Entry(master, textvariable=self.varYearStart)
-        self.entryYearStart.grid(row=5, column=2, sticky='nw')
+        self.entryYearStart.grid(row=5, column=2, sticky='nw', padx=5, pady=(0, 5))
 
-        ttk.Label(master, text="To:").grid(row=6, column=0, sticky='sew')
+        ttk.Label(master, text="To:").grid(row=6, column=0, sticky='sew', padx=5, pady=5)
 
         self.varMonthEnd = StringVar()
         self.varMonthEnd.set("January")
         self.comboMonthEnd = ttk.Combobox(master, state="readonly",
                                        textvariable=self.varMonthEnd,
                                        values=['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'])
-        self.comboMonthEnd.grid(row=7, column=0, sticky='new')
+        self.comboMonthEnd.grid(row=7, column=0, sticky='new', padx=5, pady=(0, 5))
 
         self.varDayEnd = IntVar()
         self.varDayEnd.set(1)
         self.entryDayEnd = ttk.Entry(master, textvariable=self.varDayEnd)
-        self.entryDayEnd.grid(row=7, column=1, sticky='nw')
+        self.entryDayEnd.grid(row=7, column=1, sticky='nw', padx=5, pady=(0, 5))
 
         self.varYearEnd = IntVar()
         self.varYearEnd.set(2020)
         self.entryYearEnd = ttk.Entry(master, textvariable=self.varYearEnd)
-        self.entryYearEnd.grid(row=7, column=2, sticky='nw')
+        self.entryYearEnd.grid(row=7, column=2, sticky='nw', padx=5, pady=(0, 5))
 
 
         def go():
@@ -176,12 +173,14 @@ class GUI:
                     self.progresstextvar.set("Fetching NOAA tide data for %s..." % str(thisDate)[:10])
                     self.progresswindow.update()
                     self.dataTides = fetchTides(self.varStation.get(), sunDatetime)
-                    # Add formatted datetime to [datelist] to be graphed on x-axis.
 
+                    # Add formatted datetime to [datelist] to be graphed on x-axis.
                     sunDatetimeLocal = utc_to_local(sunDatetime, tz)
                     datelist.append(sunDatetimeLocal.strftime("%#m/%#d\n%#I:%M\n%p"))
+
                     # Add tide levels to [waterlevellist] to be graphed on y-axis.
                     waterlevellist.append(float(self.dataTides['predictions'][0]['v']))
+
                     # Move on to the next day in the range.
                     thisDate += timedelta(days=1)
 
@@ -200,7 +199,7 @@ class GUI:
 
 
 
-        self.buttonGo = ttk.Button(text="Go", command=go).grid(row=8, column=0, sticky='ns', columnspan=4)
+        self.buttonGo = ttk.Button(text="Go", command=go).grid(row=8, column=0, columnspan=6, padx=5, pady=(10, 5))
 
 
 if __name__ == '__main__':
