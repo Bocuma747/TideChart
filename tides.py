@@ -39,8 +39,14 @@ def fetchTides(station, date):
         return tidedata
 
 def stationMetadata(station):
-    metadata = getjsonURL('https://tidesandcurrents.noaa.gov/api/datagetter?product=water_level&application=tides_and_currents&begin_date=20200101&end_date=20200102&datum=MLLW&station=%s&time_zone=lst_ldt&units=english&interval=1440&format=json' % station)
-    return metadata['metadata']
+    try:
+        metadata = getjsonURL('https://tidesandcurrents.noaa.gov/api/datagetter?product=water_level&application=tides_and_currents&begin_date=20200101&end_date=20200102&datum=MLLW&station=%s&time_zone=lst_ldt&units=english&interval=1440&format=json' % station)
+    except Exception as e:
+        raise Exception("Exception raised while retrieving station metadata:\n\"%s\"" % e)
+    if 'error' in metadata:
+        raise Exception("Server returned error while retrieving station metadata:\n\"%s\"" % metadata['error']['message'])
+    else:
+        return metadata['metadata']
 
 
 class GUI:
@@ -85,17 +91,17 @@ class GUI:
         self.varMonthStart.set("January")
         self.comboMonthStart = ttk.Combobox(master, state="readonly",
                                        textvariable=self.varMonthStart,
-                                       values=['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'])
+                                       values=['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'], width=15)
         self.comboMonthStart.grid(row=5, column=0, sticky='new', padx=5, pady=(0, 5))
 
         self.varDayStart = IntVar()
         self.varDayStart.set(1)
-        self.entryDayStart = ttk.Entry(master, textvariable=self.varDayStart)
+        self.entryDayStart = ttk.Entry(master, textvariable=self.varDayStart, width=5)
         self.entryDayStart.grid(row=5, column=1, sticky='nw', padx=5, pady=(0, 5))
 
         self.varYearStart = IntVar()
         self.varYearStart.set(2020)
-        self.entryYearStart = ttk.Entry(master, textvariable=self.varYearStart)
+        self.entryYearStart = ttk.Entry(master, textvariable=self.varYearStart, width=10)
         self.entryYearStart.grid(row=5, column=2, sticky='nw', padx=5, pady=(0, 5))
 
         ttk.Label(master, text="To:").grid(row=6, column=0, sticky='sew', padx=5, pady=5)
@@ -104,17 +110,17 @@ class GUI:
         self.varMonthEnd.set("January")
         self.comboMonthEnd = ttk.Combobox(master, state="readonly",
                                        textvariable=self.varMonthEnd,
-                                       values=['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'])
+                                       values=['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'], width=15)
         self.comboMonthEnd.grid(row=7, column=0, sticky='new', padx=5, pady=(0, 5))
 
         self.varDayEnd = IntVar()
         self.varDayEnd.set(1)
-        self.entryDayEnd = ttk.Entry(master, textvariable=self.varDayEnd)
+        self.entryDayEnd = ttk.Entry(master, textvariable=self.varDayEnd, width=5)
         self.entryDayEnd.grid(row=7, column=1, sticky='nw', padx=5, pady=(0, 5))
 
         self.varYearEnd = IntVar()
         self.varYearEnd.set(2020)
-        self.entryYearEnd = ttk.Entry(master, textvariable=self.varYearEnd)
+        self.entryYearEnd = ttk.Entry(master, textvariable=self.varYearEnd, width=10)
         self.entryYearEnd.grid(row=7, column=2, sticky='nw', padx=5, pady=(0, 5))
 
 
@@ -126,6 +132,7 @@ class GUI:
             except Exception as e:
                 messagebox.showerror("Error", "Error: Invalid date entered.\n\n(%s)" % e)
                 raise
+                self.progresswindow.destroy()
 
             # Make a progress window.
             self.progresswindow = Toplevel(self.master)
@@ -138,64 +145,60 @@ class GUI:
             self.progresstextvar.set("Fetching station metadata...")
             self.progresswindow.update()
             try:
-                # Handle local exceptions when fetching metadata.
                 self.metadata = stationMetadata(self.varStation.get())
             except Exception as e:
-                messagebox.showerror("Error", "Error fetching station metadata. Exception raised:\n\n(%s)" % e)
-                raise
-            # Handle server returned errors when fetching station metadata.
-            if 'error' in self.metadata:
-                messagebox.showerror("Error", "Error fetching station metadata. Server returned error:\n\n(%s)" % self.metadata)
-                raise Exception("NOAA server returned error: %s" % self.metadata)
-            else:
-                # [datelist] will contain the formatted dates and times to be displayed on the x-axis of the graph.
-                datelist = []
-                # [waterlevellist] will contain the tide levels to be graphed.
-                waterlevellist = []
-
-                tz = gettimezone(float(self.metadata['lat']), float(self.metadata['lon']))
-
-                thisDate = self.dateStart
-                # Iterate through each date in the range.
-                while thisDate <= self.dateEnd:
-                    # Fetch sunrise/sunset data for this date and location.
-                    # Get lat/long from station metadata.
-                    self.progresstextvar.set("Fetching sunrise/sunset data for %s at %s, %s..." % (str(thisDate)[:10], self.metadata['lat'], self.metadata['lon']))
-                    self.progresswindow.update()
-                    self.dataSun = getjsonURL("https://api.sunrise-sunset.org/json?lat=%s&lng=%s&date=%s&formatted=0" % (self.metadata['lat'],
-                                                                                                                         self.metadata['lon'],
-                                                                                                                         str(thisDate)[:10]))
-                    # The exact time of sunrise/set in UTC.
-                    sunTime = self.dataSun['results'][str.lower(self.varRiseSet.get())][0:-9]
-                    # Convert it to a datetime object.
-                    sunDatetime = datetime.strptime(sunTime, "%Y-%m-%dT%H:%M")
-                    # Use this datetime to fetch NOAA data.
-                    self.progresstextvar.set("Fetching NOAA tide data for %s..." % str(thisDate)[:10])
-                    self.progresswindow.update()
-                    self.dataTides = fetchTides(self.varStation.get(), sunDatetime)
-
-                    # Add formatted datetime to [datelist] to be graphed on x-axis.
-                    sunDatetimeLocal = utc_to_local(sunDatetime, tz)
-                    datelist.append(sunDatetimeLocal.strftime("%#m/%#d\n%#I:%M\n%p"))
-
-                    # Add tide levels to [waterlevellist] to be graphed on y-axis.
-                    waterlevellist.append(float(self.dataTides['predictions'][0]['v']))
-
-                    # Move on to the next day in the range.
-                    thisDate += timedelta(days=1)
-
-                # Exit progress window when done loading data.
+                messagebox.showerror("Error", "%s" % e)
                 self.progresswindow.destroy()
+                raise
 
-                # Graph data.
-                y_pos = np.arange(len(datelist))
-                plt.clf()
-                plt.bar(y_pos, waterlevellist, align='center')
-                plt.xticks(y_pos, datelist)
-                plt.xlabel("%s date/time (Timezone: %s)" % (self.varRiseSet.get(), tz))
-                plt.ylabel("Height (ft.)")
-                plt.title("Tide levels at %s at station %s (%s)" % (str.lower(self.varRiseSet.get()), self.metadata['name'], self.metadata['id']))
-                plt.show()
+            # [datelist] will contain the formatted dates and times to be displayed on the x-axis of the graph.
+            datelist = []
+            # [waterlevellist] will contain the tide levels to be graphed.
+            waterlevellist = []
+
+            tz = gettimezone(float(self.metadata['lat']), float(self.metadata['lon']))
+
+            thisDate = self.dateStart
+            # Iterate through each date in the range.
+            while thisDate <= self.dateEnd:
+                # Fetch sunrise/sunset data for this date and location.
+                # Get lat/long from station metadata.
+                self.progresstextvar.set("Fetching sunrise/sunset data for %s at %s, %s..." % (str(thisDate)[:10], self.metadata['lat'], self.metadata['lon']))
+                self.progresswindow.update()
+                self.dataSun = getjsonURL("https://api.sunrise-sunset.org/json?lat=%s&lng=%s&date=%s&formatted=0" % (self.metadata['lat'],
+                                                                                                                     self.metadata['lon'],
+                                                                                                                     str(thisDate)[:10]))
+                # The exact time of sunrise/set in UTC.
+                sunTime = self.dataSun['results'][str.lower(self.varRiseSet.get())][0:-9]
+                # Convert it to a datetime object.
+                sunDatetime = datetime.strptime(sunTime, "%Y-%m-%dT%H:%M")
+                # Use this datetime to fetch NOAA data.
+                self.progresstextvar.set("Fetching NOAA tide data for %s..." % str(thisDate)[:10])
+                self.progresswindow.update()
+                self.dataTides = fetchTides(self.varStation.get(), sunDatetime)
+
+                # Add formatted datetime to [datelist] to be graphed on x-axis.
+                sunDatetimeLocal = utc_to_local(sunDatetime, tz)
+                datelist.append(sunDatetimeLocal.strftime("%#m/%#d\n%#I:%M\n%p"))
+
+                # Add tide levels to [waterlevellist] to be graphed on y-axis.
+                waterlevellist.append(float(self.dataTides['predictions'][0]['v']))
+
+                # Move on to the next day in the range.
+                thisDate += timedelta(days=1)
+
+            # Exit progress window when done loading data.
+            self.progresswindow.destroy()
+
+            # Graph data.
+            y_pos = np.arange(len(datelist))
+            plt.clf()
+            plt.bar(y_pos, waterlevellist, align='center')
+            plt.xticks(y_pos, datelist)
+            plt.xlabel("%s date/time (Timezone: %s)" % (self.varRiseSet.get(), tz))
+            plt.ylabel("Height (ft.)")
+            plt.title("Tide levels at %s at station %s (%s)" % (str.lower(self.varRiseSet.get()), self.metadata['name'], self.metadata['id']))
+            plt.show()
 
 
 
