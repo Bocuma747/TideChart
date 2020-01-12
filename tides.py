@@ -28,11 +28,12 @@ def gettimezone(latitude, longitude):
 def callback_url(url):
     webbrowser.open_new(url)
 
-# Pass this the station number as a string, and the date as a UTC datetime object.
-def fetchTides(station, date):
-    formattedDate = date.strftime("%Y%m%d%%20%H:%M")
+# Pass this the station number as a string, and the start/end dates as UTC datetime objects.
+def fetchTides(station, startdate, enddate):
+    formattedStartDate = startdate.strftime("%Y%m%d")
+    formattedEndDate = enddate.strftime("%Y%m%d")
     # Get tide prediction data.
-    tidedata = getjsonURL('https://tidesandcurrents.noaa.gov/api/datagetter?product=predictions&application=testing123&begin_date=%s&end_date=%s&datum=MLLW&station=%s&time_zone=gmt&units=english&interval=1&format=json' % (formattedDate, formattedDate, station))
+    tidedata = getjsonURL('https://tidesandcurrents.noaa.gov/api/datagetter?product=predictions&application=testing123&begin_date=%s&end_date=%s&datum=MLLW&station=%s&time_zone=gmt&units=english&interval=1&format=json' % (formattedStartDate, formattedEndDate, station))
     if 'error' in tidedata:
         return None
     else:
@@ -158,6 +159,24 @@ class GUI:
 
             tz = gettimezone(float(self.metadata['lat']), float(self.metadata['lon']))
 
+            self.progresstextvar.set("Fetching NOAA tide data...\nThis may take a while.")
+            self.progresswindow.update()
+            try:
+                # Start and end dates are padded by -/+ 1 day to compensate for UTC often being a day away from local time.
+                self.dataTides = fetchTides(self.varStation.get(), self.dateStart-timedelta(days=1), self.dateEnd+timedelta(days=1))
+            except Exception as e:
+                messagebox.showerror("Error", "Exception raised while retrieving tide data:\n\n(%s)" % e)
+                raise
+                self.progresswindow.destroy()
+            if 'error' in self.dataTides:
+                messagebox.showerror("Error", "Server returned error while retrieving tide data:\n\n(%s)" % self.dataTides['error']['message'])
+                raise Exception("Server returned error while retrieving tide data: %s" % self.dataTides['error']['message'])
+                self.progresswindow.destroy()
+
+            self.tidesDict = {}
+            for datum in self.dataTides['predictions']:
+                self.tidesDict[datum['t']] = datum['v']
+
             thisDate = self.dateStart
             # Iterate through each date in the range.
             while thisDate <= self.dateEnd:
@@ -172,17 +191,12 @@ class GUI:
                 sunTime = self.dataSun['results'][str.lower(self.varRiseSet.get())][0:-9]
                 # Convert it to a datetime object.
                 sunDatetime = datetime.strptime(sunTime, "%Y-%m-%dT%H:%M")
-                # Use this datetime to fetch NOAA data.
-                self.progresstextvar.set("Fetching NOAA tide data for %s..." % str(thisDate)[:10])
-                self.progresswindow.update()
-                self.dataTides = fetchTides(self.varStation.get(), sunDatetime)
-
                 # Add formatted datetime to [datelist] to be graphed on x-axis.
                 sunDatetimeLocal = utc_to_local(sunDatetime, tz)
                 datelist.append(sunDatetimeLocal.strftime("%#m/%#d\n%#I:%M\n%p"))
 
                 # Add tide levels to [waterlevellist] to be graphed on y-axis.
-                waterlevellist.append(float(self.dataTides['predictions'][0]['v']))
+                waterlevellist.append(float(self.tidesDict[sunDatetime.strftime("%Y-%m-%d %H:%M")]))
 
                 # Move on to the next day in the range.
                 thisDate += timedelta(days=1)
